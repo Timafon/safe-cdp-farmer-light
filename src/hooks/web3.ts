@@ -23,7 +23,7 @@ export function useEagerConnect() {
             setTried(true)
           })
         } else {
-          if (window.ethereum) {
+          if (!window.ethereum) {
             activate(injected, undefined, true).catch(() => {
               setTried(true)
             })

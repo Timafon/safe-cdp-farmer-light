@@ -34,7 +34,7 @@ async function fetchChunk(
       })),
       { blockTag: blockNumber }
     )
-console.log('returnData: ', returnData)
+// TODO?
     // if (process.env.NODE_ENV === 'development') {
     //     // @ts-ignore
     //   returnData.forEach(({ gasUsed, returnData, success }, i) => {

@@ -4,6 +4,7 @@ interface Window {
     ethereum?: {
         isMetaMask?: true
         on?: (...args: any[]) => void
+        request?: (...args: any[]) => void
         removeListener?: (...args: any[]) => void
         autoRefreshOnNetworkChange?: boolean
     }

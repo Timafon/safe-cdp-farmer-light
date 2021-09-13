@@ -14,6 +14,11 @@ export const AAVE_ADDRESSES: AddressMap = {
 export const AAVE_PROXY_ADDRESSES: AddressMap = {
     [SupportedChainId.Polygon]: '0x6A8730F54b8C69ab096c43ff217CA0a350726ac7',
 }
+export const AAVE_INCENTIVIZE_ADDRESSES: AddressMap = {
+    // Proxy 0x2c901a65071c077c78209b06ab2b5d8ec285ab84
+    // Straight 0x357D51124f59836DeD84c8a1730D72B749d8BC23
+    [SupportedChainId.Polygon]: '0x357D51124f59836DeD84c8a1730D72B749d8BC23',
+}
 export const CURVE_ADDRESSES: AddressMap = {
     [SupportedChainId.Polygon]: '0x445fe580ef8d70ff569ab36e80c647af338db351',
 }

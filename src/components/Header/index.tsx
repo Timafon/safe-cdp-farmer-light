@@ -1,5 +1,5 @@
 import React from 'react'
-import {Button, Grid, Segment} from "semantic-ui-react";
+import {Button, Grid, Image, Segment} from "semantic-ui-react";
 import {ALL_SUPPORTED_CHAIN_IDS} from "../../constants/chains";
 import {shortenAddress} from "../../utils";
 import setupNetwork from '../../utils/setupNetwork';
@@ -43,7 +43,17 @@ export function Header() {
         <Segment basic>
             <Grid container stretched stackable verticalAlign="middle" style={style.header}>
                 <Grid.Column width={8}>
-                    <h1>Safe CDP Farmer light</h1>
+                    <Grid verticalAlign="middle">
+                        <Grid.Column width={3}>
+                            <Image
+                                size='small'
+                                src='/images/farmer.png'
+                            />
+                        </Grid.Column>
+                        <Grid.Column width={13}>
+                            <h1>Safe CDP Farmer <em>light</em></h1>
+                        </Grid.Column>
+                    </Grid>
                 </Grid.Column>
                 <Grid.Column width={8}>
                     <Grid stackable verticalAlign="middle" textAlign="right">

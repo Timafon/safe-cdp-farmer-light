@@ -10,7 +10,8 @@ import {
 import {useActiveWeb3React} from "../../hooks/web3";
 import {useSingleCallResult, useSingleContractMultipleData} from "../multicall/hooks";
 import {Interface} from "@ethersproject/abi";
-import {BIG_INT_ZERO} from "../../constants/misc";
+import {BigNumber} from "@ethersproject/bignumber";
+import {BIG_INT_ZERO, ZERO_ADDRESS} from "../../constants/misc";
 import {WETH, amAAVE, amWMATIC, CRV, USDT, vrblDbmUSDT, WMATIC, MATIC} from "../../constants/tokens";
 import React from "react";
 import {ALL_SUPPORTED_CHAIN_IDS} from "../../constants/chains";
@@ -26,6 +27,8 @@ const MAX_TARGET_HF = JSBI.BigInt('1850000000000000000')
 // const maxTargetHfEth = new TokenAmount(WETH, MAX_TARGET_HF)
 const MATIC_LT = JSBI.BigInt('650000000000000000')
 // const maticLt = new TokenAmount(WETH, MATIC_LT)
+const UNDERLYING = JSBI.BigInt(1)
+const RATE_MODE = JSBI.BigInt(2)
 
 export enum TransferDirection {
     repay,
@@ -62,7 +65,7 @@ interface RebalanceInterface {
     targetAmountForTransfer: number,
     direction?: TransferDirection
 }
-export function useRebalance(acc?: string): RebalanceInterface {
+export function useMainInfo(acc?: string): RebalanceInterface {
     let { account, chainId } = useActiveWeb3React()
     account = acc ? acc : account
     const isAcceptableNetwork = React.useMemo(
@@ -129,7 +132,7 @@ export function useRebalance(acc?: string): RebalanceInterface {
         'claimed_reward',
         [[account ?? undefined, CRV.address], [account ?? undefined, WMATIC.address]],
     )
-
+// TODO handle errors, loadings, etc.
     const curveClaimableRewardCrv = curveClaimableRewards[0]?.result?.[0]
     const curveClaimedRewardCrv = curveClaimedRewards[0]?.result?.[0]
     const curveClaimableRewardWmatic = curveClaimableRewards[1]?.result?.[0]
@@ -186,7 +189,7 @@ export function useRebalance(acc?: string): RebalanceInterface {
         targetAmountForTransfer,
         direction
     }
-
+console.log('targetAmountForTransfer: ', targetAmountForTransfer)
     return {
         loading,
         // @ts-ignore
@@ -207,18 +210,82 @@ export function useRebalance(acc?: string): RebalanceInterface {
     // useMultipleContractSingleData(rewardsAddresses, STAKING_REWARDS_INTERFACE, 'balanceOf', accountArg)
 }
 
-export function useRepay() {
-    // await curveDepositContract["withdraw(uint256)"] [write]
-    // await curveContract.calc_token_amount(amounts, false) [read]
-    // await curveContract["remove_liquidity_imbalance(uint256[3],uint256,bool)"] [write]
-    // await aaveProxyContract.repay(asset, amount, rateMode, onBehalfOf) [write]
+export function useRepay(acc: string, targetAmountForTransfer: number) {
+    let { account } = useActiveWeb3React()
+    account = acc ? acc : account
+    // [1][write] await curveDepositContract["withdraw(uint256)"] [write]
+    // [2][read] await curveContract.calc_token_amount(amounts, false) [read]
+    // [3][write] await curveContract["remove_liquidity_imbalance(uint256[3],uint256,bool)"] [write]
+    // [4][write] await aaveProxyContract.repay(asset, amount, rateMode, onBehalfOf) [write]
+    const aaveContract = useAaveContract()
+    const aaveICContract = useAaveICContract()
+    const priceOracleContract = usePriceOracleContract()
+    const curveContract = useCurveContract()
+    const curveDepositContract = useCurveDepositContract()
+    const am3crvGaugeContract = useAm3crvGaugeContract()
+
+    // https://curve.readthedocs.io/dao-gauges.html?highlight=withdraw#deposits-and-withdrawals
+    // am3Crv-gauge -> am3Crv
+    const withdrawAmount = JSBI.divide(
+        JSBI.multiply(
+            JSBI.multiply(JSBI.BigInt(targetAmountForTransfer), JSBI.BigInt(1000000000000)),
+            JSBI.BigInt(99)
+        ),
+        JSBI.BigInt(100)
+    ).toString()
+    const isCurveWithdrawSuccessful = useSingleCallResult(
+        curveDepositContract,
+        'withdraw(uint256)',
+        // почему 99% for withdraw from aave???
+        // может потому что я ловил баги, если пытался снять больше или неправильно округлял числа???
+        [withdrawAmount]
+    )?.result?.[0]
+
+    const withdrawAmountBN = JSBI.BigInt(targetAmountForTransfer)
+    const listWithdrawalTokensAmounts = [BIG_INT_ZERO, BIG_INT_ZERO, withdrawAmountBN]
+    //?https://curve.readthedocs.io/factory-deposits.html?highlight=calc_token_amount#DepositZap.calc_token_amount
+    // Calculate addition or reduction in token supply from a deposit or withdrawal
+    let maxBurnAmount = useSingleCallResult(
+        curveContract,
+        'calc_token_amount(uint256[3],uint256,bool)',
+        // почему 101%? не помню
+        [listWithdrawalTokensAmounts, 'false']
+    )?.result?.[0]
+    maxBurnAmount = JSBI.divide(
+        JSBI.multiply(
+            JSBI.BigInt(maxBurnAmount),
+            JSBI.BigInt(101)
+        ),
+        JSBI.BigInt(100)
+    )
+    //?https://curve.readthedocs.io/factory-pools.html?highlight=remove_liquidity_imbalance#StableSwap.remove_liquidity_imbalance
+    // am3Crv -> USDT
+    // Withdraw coins in an imbalanced amount
+    const isRemoveLiquiditySuccessful = useSingleCallResult(
+        curveContract,
+        'remove_liquidity_imbalance(uint256[3],uint256,bool)',
+        // почему 99% for withdraw from aave???
+        // может потому что я ловил баги, если пытался снять больше или неправильно округлял числа???
+        [listWithdrawalTokensAmounts, maxBurnAmount, UNDERLYING]
+    )?.result?.[0]
+
+    const asset = USDT.address
+    const amounts = listWithdrawalTokensAmounts
+    const rateMode = RATE_MODE
+    const onBehalfOf = account || ZERO_ADDRESS // TODO
+    // https://docs.aave.com/developers/the-core-protocol/lendingpool#repay
+    const isRepaySuccessful = useSingleCallResult(
+        aaveContract,
+        'repay',
+        [asset, amounts, rateMode, onBehalfOf]
+    )?.result?.[0]
 }
 
 export function useBorrow() {
-    // await aaveProxyContract.borrow(asset, amount, rateMode, referralCode, onBehalfOf) [write]
-    // await curveContract.calc_token_amount(amounts, true) [read]
-    // await curveContract["add_liquidity(uint256[3],uint256,bool)"] [write]
-    // await am3CrvContract.approve(address, "0xffffffffffffffffffffff") [write]
-    // await am3CrvContract.balanceOf(address) [read]
-    // await curveDepositContract["deposit(uint256)"] [write]
+    // [1][write] await aaveProxyContract.borrow(asset, amount, rateMode, referralCode, onBehalfOf) [write]
+    // [2][read] await curveContract.calc_token_amount(amounts, true) [read]
+    // [3][write] await curveContract["add_liquidity(uint256[3],uint256,bool)"] [write]
+    // [4][write] await am3CrvContract.approve(address, "0xffffffffffffffffffffff") [write]
+    // [5][read] await am3CrvContract.balanceOf(address) [read]
+    // [6][write] await curveDepositContract["deposit(uint256)"] [write]
 }

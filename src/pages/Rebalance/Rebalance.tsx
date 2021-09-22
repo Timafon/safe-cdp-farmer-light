@@ -1,7 +1,7 @@
 import web3 from 'web3'
 import React from 'react'
 import {Button, Card, Divider, Grid, Statistic, Icon, SemanticICONS, Image, Segment, Step} from "semantic-ui-react"
-import {TransferDirection, useRebalance} from "../../state/rebalance/hooks";
+import {TransferDirection, useMainInfo} from "../../state/rebalance/hooks";
 import {SemanticCOLORS} from "semantic-ui-react/dist/commonjs/generic";
 
 
@@ -19,7 +19,7 @@ export function Rebalance() {
         curveClaimedRewardWmatic,
         targetAmountForTransfer,
         direction
-    } = useRebalance()
+    } = useMainInfo()
     const way = React.useMemo(() => {
         if (direction === TransferDirection.repay) {
             return {

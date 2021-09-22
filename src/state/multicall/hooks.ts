@@ -7,12 +7,13 @@ import { useActiveWeb3React } from '../../hooks/web3'
 import { useBlockNumber } from '../application/hooks'
 import { addMulticallListeners, ListenerOptions, removeMulticallListeners } from './actions'
 import { Call, parseCallKey, toCallKey } from './utils'
+import JSBI from "jsbi";
 
 export interface Result extends ReadonlyArray<any> {
   readonly [key: string]: any
 }
 
-type MethodArg = string | number | BigNumber
+type MethodArg = string | number | BigNumber | JSBI
 type MethodArgs = Array<MethodArg | MethodArg[]>
 
 type OptionalMethodInputs = Array<MethodArg | MethodArg[] | undefined> | undefined
